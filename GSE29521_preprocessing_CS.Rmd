@@ -1,0 +1,161 @@
+---
+title: "GSE28521_Preprocessing by CS"
+output:
+  html_document:
+    keep_md: yes
+---
+
+
+```{r}
+source("http://bioconductor.org/biocLite.R")
+biocLite()
+# biocLite("GEOquery") 
+# biocLite('lumi')
+# biocLite('WGCNA')
+```
+
+
+```{r}
+library(GEOquery)
+library(lumi)
+```
+
+
+## 2. Rawdata download
+
+###- http://www.ncbi.nlm.nih.gov/geo/
+
+
+```{r}
+### Change working directory
+getwd()
+setwd("~/Study/BioNetwork/")
+
+### Download GSE dataset
+# getGEOSuppFiles("GSE28521")
+
+### Unzip dataset
+setwd("GSE28521")
+# system("gunzip GSE28521_non-normalized_data.txt.gz")
+# system("tar xvf GSE28521_RAW.tar")
+getwd()
+
+```
+
+```{r}
+filename <- "GSE28521_non-normalized_data.txt"
+data.lumi <- lumiR(filename)
+sampleKey_F <- read.csv("SampleDescription_F.csv")
+
+
+## data structure
+summary(data.lumi, 'QC')
+str(data.lumi)
+dim(data.lumi)
+head(sampleNames(data.lumi))
+head(data.lumi)
+head(sampleKey_F)
+
+## sampleNames, featureNames == rownames, colnames
+
+## Quadrate the position of SampleName 
+matchSN <- match(sampleKey_F$GEO_SampleName, sampleNames(data.lumi))
+matchSN
+
+## Assign the color following phenotypes (ASD, CON) 
+colPhenotype <- as.character(sampleKey_F$A.C)
+colPhenotype 
+
+colPhenotype[which(colPhenotype[]=="A")]="red"
+colPhenotype[which(colPhenotype[]=="C")]="blue"
+
+## data.lumi -> sampleKey_F : matching
+data_FCTX <- data.lumi[,matchSN]
+sampleNames(data_FCTX)
+sampleNames(data_FCTX)[1:16] <- c("ASD1", "ASD2", "ASD3", "ASD4", "ASD5",
+                                  "ASD6", "ASD7", "ASD8", "ASD9", "ASD10",
+                                  "ASD11", "ASD12", "ASD13", "ASD14",
+                                  "ASD15", "ASD16")
+sampleNames(data_FCTX)[17:32] <- c("CON1", "CON2", "CON3", "CON4", "CON5",
+                                   "CON6", "CON7", "CON8", "CON9", 
+                                   "CON10", "CON11", "CON12", "CON13",
+                                   "CON14", "CON15", "CON16")
+
+sampleNames(data_FCTX)
+```
+
+
+## 3. Plotting using non-nomalized data
+
+```{r}
+plot(data_FCTX, what="density")
+plot(data_FCTX, what="cv")
+plot(data_FCTX, what="boxplot", col=colPhenotype)
+plot(data_FCTX, what="sampleRelation", method="cluster")
+plot(data_FCTX, what="sampleRelation", method="mds", col=colPhenotype)
+```
+
+
+
+## 4. Normalization
+
+```{r}
+## log2 transformation and normalization
+dataFCTX_lumiNQ <- lumiExpresso(data_FCTX, QC.evaluation=TRUE)
+```
+
+
+
+## 5. Plotting using normalized data
+
+```{r}
+plot(dataFCTX_lumiNQ, what="boxplot", col=colPhenotype)
+plot(dataFCTX_lumiNQ, what="density")
+plot(dataFCTX_lumiNQ, what="cv")
+plot(dataFCTX_lumiNQ, what="sampleRelation", method="cluster")
+plot(dataFCTX_lumiNQ, what="sampleRelation", method="mds", col=colPhenotype)
+```
+
+
+## 6. Sample Selection
+
+```{r}
+Resamp_lumiNQ <- dataFCTX_lumiNQ[,c("ASD4", "ASD9", "ASD10", "CON1", "CON2", "CON6")]
+
+plot(Resamp_lumiNQ, what="boxplot", col=c(rep("red",3), rep("blue", 3)))
+plot(Resamp_lumiNQ , what="density", col=c(rep("red",3), rep("blue", 3)))
+plot(Resamp_lumiNQ , what="sampleRelation", method="cluster")
+plot(Resamp_lumiNQ , what="sampleRelation", method="mds", col=c(rep("red",3), rep("blue", 3)))
+MAplot(Resamp_lumiNQ, smoothScatter=TRUE)
+```
+
+
+## 7. Annotation
+
+```{r}
+tmp = getGEO("GPL6883",AnnotGPL=TRUE)
+map <- Table(tmp)
+
+dim(map)
+names(map)
+
+map <- map[,-grep("GO:", names(map))] # drop GO
+names(map)
+map <- map[,1:3]
+head(map)
+rownames(map) <- map$ID
+head(map)
+
+map_new <- map[rownames(Resamp_lumiNQ),]
+head(map_new)
+identical(rownames(map_new), rownames(Resamp_lumiNQ))
+Resamp_lumiNQ <- exprs(Resamp_lumiNQ)
+head(Resamp_lumiNQ)
+
+Norm_GSE28521 <- cbind(map_new, Resamp_lumiNQ)
+head(Norm_GSE28521)
+
+write.csv(Norm_GSE28521, file = "normalized_GSE28521.csv", row.names = TRUE)
+write.csv(map_new, file = "GSE28521_info.csv", row.names = TRUE)
+```
+
