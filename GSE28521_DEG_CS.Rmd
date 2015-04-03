@@ -1,0 +1,99 @@
+---
+title: "GSE28521_DEG_CS"
+output:
+  html_document:
+    keep_md: yes
+---
+
+## 1. Load data
+
+```{r}
+getwd()
+setwd("~/Study/BioNetwork/GSE28521")
+
+data <- read.table("normalized_GSE28521.csv", sep =",", row.names = 1, header = TRUE)
+head(data)
+```
+
+## 2. grouping
+
+```{r}
+Sample <- data[,c(4:9)]
+Sample <- as.matrix(Sample)
+
+l = c(1,1,1,2,2,2)          # grouping 1 = ASD, 2 = CON
+g = factor(l)               # group 추출
+```
+
+
+## 3. samr
+
+```{r}
+library(samr)     					# SAM package loading
+sg = sub("0","2",l)					# grouping
+sm= list(x = Sample, y= sg, logged2=TRUE)			# SAM input matrix
+st = samr(sm,resp.type="Two class unpaired",nperm=100)	# sam test
+dt = samr.compute.delta.table(st)			# delta table 작성 Computes tables of thresholds, cutpoints and corresponding False Discovery rates for SAM analysis
+dt
+d = 2.00
+
+samr.plot(st,d)  					#SAM plot
+
+st = samr.compute.siggenes.table(st,d,sm,dt)  	#result table 작성
+
+names(st)    							#element 확인 
+head(st)
+```
+
+
+## 4. Data manipulation
+
+```{r}
+genes_up <- st$genes.up
+genes_down <- st$genes.lo
+head(genes_up)
+head(genes_down) 
+
+ss = function(x, pattern, slot=1,...) sapply(strsplit(x,pattern,...), function(y) y[slot])
+
+genes_up[,2] <- ss(genes_up[,2],"g", 2)
+genes_down[,2] <- ss(genes_down[,2],"g", 2)
+head(genes_up)
+head(genes_down)
+
+IDrow_up <- as.numeric(genes_up[,2])
+IDrow_down <- as.numeric(genes_down[,2])
+
+head(IDrow_up)
+head(IDrow_down)
+
+
+
+data_up <- data[IDrow_up,]
+data_down <-data[IDrow_down,]
+head(data_up)
+
+
+sam_up <- cbind(data_up, genes_up[,7:8])
+sam_down <- cbind(data_down, genes_down[,7:8])
+head(sam_up)
+dim(sam_up)
+head(sam_down)
+dim(sam_down)
+
+colnames(sam_up)[10:11] <- c("Fold_change", "q_value")
+colnames(sam_down)[10:11] <- c("Fold_change", "q_value")
+
+colnames(sam_up)
+
+str(sam_up)
+
+sam_up$q_value <- as.numeric(paste(sam_up$q_value))
+sam_up$Fold_change <- as.numeric(paste(sam_up$Fold_change))
+sam_down$q_value <- as.numeric(paste(sam_down$q_value))
+sam_down$Fold_change <- as.numeric(paste(sam_down$Fold_change))
+
+write.table(sam_up,"GSE_28521_sam_up.csv",sep=",", row.names=T) 
+write.table(sam_down,"GSE_28521_sam_down.csv",sep=",", row.names=T)
+```
+
